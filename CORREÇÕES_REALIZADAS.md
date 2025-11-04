@@ -2,7 +2,7 @@
 
 ## Data: 04/11/2024 - Correção de Produtos Compostos no PDV
 
-### 🔧 Problema Corrigido: Consumo Incorreto de Estoque em Produtos Compostos
+### 🔧 Problema 1 Corrigido: Consumo Incorreto de Estoque em Produtos Compostos
 
 **Descrição do Problema:**
 Quando vendia um produto composto no PDV, o sistema estava SEMPRE consumindo a matéria-prima, mesmo quando o produto composto tinha estoque disponível. Isso causava consumo desnecessário da matéria-prima.
@@ -25,18 +25,54 @@ Venda: 1 Meio Frango
 Resultado: Meio Frango = 4, Frango Inteiro = 10 (CORRETO!)
 ```
 
-**Nova Lógica Implementada:**
-1. Sistema verifica se o produto composto tem estoque suficiente
-2. **SE tem estoque:** Consome apenas do estoque do produto composto
-3. **SE NÃO tem estoque:** Aí sim consome da matéria-prima
-4. PDV e Totem podem vender produtos compostos sem estoque (consumindo matéria-prima)
-5. CustomStore continua funcionando normalmente (só vende com estoque disponível)
-
 **Arquivo Modificado:**
-- `/src/pages/PDV.tsx` (linhas 1044-1134)
+- `/src/pages/PDV.tsx` (linhas 1047-1137) - Lógica de consumo de estoque corrigida
+
+---
+
+### 🔧 Problema 2 Corrigido: PDV Bloqueava Venda de Produtos Compostos Sem Estoque
+
+**Descrição do Problema:**
+O PDV não permitia adicionar produtos compostos ao carrinho quando não havia estoque, mesmo que fosse necessário poder vender sem estoque (consumindo da matéria-prima).
+
+**Comportamento Incorreto (Anterior):**
+```
+Estoque: Meio Frango = 0 unidades, Frango Inteiro = 10 unidades
+Tentativa de venda: 1 Meio Frango
+❌ Sistema bloqueava: "Estoque insuficiente"
+❌ Não permitia adicionar ao carrinho
+```
+
+**Comportamento Correto (Atual):**
+```
+Estoque: Meio Frango = 0 unidades, Frango Inteiro = 10 unidades
+Tentativa de venda: 1 Meio Frango
+✅ Sistema permite adicionar ao carrinho
+✅ Na finalização, consome 1 unidade do Frango Inteiro (matéria-prima)
+Resultado: Meio Frango = 0, Frango Inteiro = 9 (CORRETO!)
+```
+
+**Correções Implementadas:**
+1. Adicionados campos `is_composite`, `raw_material_product_id`, `raw_material_variation_id`, `yield_quantity` na interface `Variation`
+2. Função `addProductToCart`: Verifica se é item composto antes de validar estoque
+3. Função `updateQuantity`: Permite aumentar quantidade de itens compostos sem estoque
+4. Produtos compostos podem ser vendidos com estoque = 0 (consumirá matéria-prima)
+5. Produtos normais continuam com validação de estoque
+
+**Arquivos Modificados:**
+- `/src/pages/PDV.tsx`:
+  - Linhas 65-75: Interface `Variation` atualizada
+  - Linhas 486-535: Função `addProductToCart` corrigida
+  - Linhas 552-585: Função `updateQuantity` corrigida
+  - Linhas 1047-1137: Lógica de consumo de estoque
 
 **Documentação Atualizada:**
 - `/FUNCIONALIDADE_ITENS_COMPOSTOS.md` - Documentação completa da nova lógica com exemplos
+
+**Regras Mantidas:**
+- ✅ **PDV e Totem:** Podem vender produtos compostos sem estoque (consumindo matéria-prima)
+- ✅ **CustomStore:** Continua funcionando normalmente (só vende com estoque disponível)
+- ✅ **Prioridade de consumo:** Estoque do produto composto primeiro, matéria-prima depois
 
 ---
 

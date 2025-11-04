@@ -68,6 +68,10 @@ interface Variation {
   name: string;
   price_adjustment: number;
   stock_quantity: number;
+  is_composite?: boolean; // Se é um item composto
+  raw_material_product_id?: string; // ID da matéria-prima (produto)
+  raw_material_variation_id?: string; // ID da matéria-prima (variação)
+  yield_quantity?: number; // Rendimento
 }
 
 interface CartItem extends Product {
@@ -485,13 +489,16 @@ export default function PDV() {
     const itemPrice = variation ? product.price + variation.price_adjustment : product.price;
     const itemStock = variation ? variation.stock_quantity : product.stock_quantity;
     const itemId = variation ? `${product.id}-${variation.id}` : product.id;
+    const isComposite = variation?.is_composite || false; // Verificar se é item composto
 
     const existingItem = cart.find(item => 
       item.id === product.id && item.selectedVariation?.id === variation?.id
     );
     
     if (existingItem) {
-      if (existingItem.quantity >= itemStock) {
+      // Para itens compostos, permite adicionar sem estoque (consumirá matéria-prima)
+      // Para itens normais, verifica o estoque
+      if (!isComposite && existingItem.quantity >= itemStock) {
         toast({
           variant: "destructive",
           title: "Estoque insuficiente",
@@ -505,7 +512,9 @@ export default function PDV() {
           : item
       ));
     } else {
-      if (1 > itemStock) { // Check if initial quantity (1) exceeds stock
+      // Para itens compostos, permite adicionar sem estoque (consumirá matéria-prima)
+      // Para itens normais, verifica o estoque
+      if (!isComposite && 1 > itemStock) { // Check if initial quantity (1) exceeds stock
         toast({
           variant: "destructive",
           title: "Estoque insuficiente",
@@ -551,7 +560,11 @@ export default function PDV() {
       ? itemInCart.selectedVariation.stock_quantity 
       : itemInCart.stock_quantity;
 
-    if (quantity > currentStock) {
+    const isComposite = itemInCart.selectedVariation?.is_composite || false;
+
+    // Para itens compostos, permite adicionar sem estoque (consumirá matéria-prima)
+    // Para itens normais, verifica o estoque
+    if (!isComposite && quantity > currentStock) {
       toast({
         variant: "destructive",
         title: "Estoque insuficiente",
