@@ -207,10 +207,24 @@ Resultado:
 ## ⚠️ Observações Importantes
 
 1. **Prioridade de estoque:** O sistema SEMPRE consome primeiro o estoque do produto composto. A matéria-prima só é consumida quando não há estoque suficiente.
-2. **PDV e Totem:** Podem vender produtos compostos mesmo sem estoque (nesse caso, consome da matéria-prima).
-3. **CustomStore:** Só pode vender produtos que tenham estoque disponível (não afetado por esta funcionalidade).
-4. **Planeje o rendimento cuidadosamente** - uma vez vendido, a transação é calculada com base nele.
-5. **Cancelamentos** ainda precisam ser implementados manualmente por enquanto.
+2. **Validação inteligente:** O PDV verifica em tempo real o estoque da matéria-prima. Só permite a venda se houver matéria-prima disponível.
+3. **PDV e Totem:** Podem vender produtos compostos sem estoque, **DESDE QUE** a matéria-prima tenha estoque disponível.
+4. **CustomStore:** Só pode vender produtos que tenham estoque disponível (não afetado por esta funcionalidade).
+5. **Planeje o rendimento cuidadosamente** - uma vez vendido, a transação é calculada com base nele.
+6. **Cancelamentos** ainda precisam ser implementados manualmente por enquanto.
+
+## 🚫 Quando a Venda é Bloqueada
+
+A venda de um produto composto é bloqueada **SOMENTE** quando:
+- ❌ Produto composto está sem estoque (= 0)
+- ❌ **E** a matéria-prima também está sem estoque
+
+**Exemplo:**
+```
+Estoque: Meio Frango = 0, Frango Inteiro = 0
+Tentativa de venda: 1 Meio Frango
+❌ Sistema bloqueia: "Matéria-prima insuficiente"
+```
 
 ---
 

@@ -483,7 +483,39 @@ export default function PDV() {
     }
   };
 
-  const addProductToCart = (product: Product, variation?: Variation) => {
+  // Função auxiliar para verificar estoque de matéria-prima de item composto
+  const checkRawMaterialStock = async (variation: Variation, quantityNeeded: number): Promise<boolean> => {
+    if (!variation.is_composite) return true;
+    
+    const { raw_material_product_id, raw_material_variation_id, yield_quantity } = variation;
+    if (!raw_material_product_id && !raw_material_variation_id) return true;
+
+    const isRawMaterialVariation = !!raw_material_variation_id;
+    const rawMaterialId = isRawMaterialVariation ? raw_material_variation_id : raw_material_product_id;
+    const rawMaterialTable = isRawMaterialVariation ? "product_variations" : "products";
+
+    try {
+      const { data: rawMaterial, error } = await supabase
+        .from(rawMaterialTable)
+        .select("stock_quantity, name")
+        .eq("id", rawMaterialId)
+        .single();
+
+      if (error || !rawMaterial) {
+        console.error("Erro ao verificar estoque da matéria-prima:", error);
+        return false;
+      }
+
+      // Calcular quantas unidades de matéria-prima são necessárias
+      const rawMaterialNeeded = Math.ceil(quantityNeeded / (yield_quantity || 1));
+      return rawMaterial.stock_quantity >= rawMaterialNeeded;
+    } catch (error) {
+      console.error("Erro ao verificar estoque da matéria-prima:", error);
+      return false;
+    }
+  };
+
+  const addProductToCart = async (product: Product, variation?: Variation) => {
     playClick(); // Toca o som de clique
     
     const itemPrice = variation ? product.price + variation.price_adjustment : product.price;
@@ -496,9 +528,10 @@ export default function PDV() {
     );
     
     if (existingItem) {
-      // Para itens compostos, permite adicionar sem estoque (consumirá matéria-prima)
-      // Para itens normais, verifica o estoque
-      if (!isComposite && existingItem.quantity >= itemStock) {
+      const newQuantity = existingItem.quantity + 1;
+      
+      // Para itens normais, verifica o estoque normalmente
+      if (!isComposite && newQuantity > itemStock) {
         toast({
           variant: "destructive",
           title: "Estoque insuficiente",
@@ -506,15 +539,30 @@ export default function PDV() {
         });
         return;
       }
+      
+      // Para itens compostos, verifica se precisa de matéria-prima
+      if (isComposite && newQuantity > itemStock && variation) {
+        const quantityFromRawMaterial = newQuantity - itemStock;
+        const hasRawMaterialStock = await checkRawMaterialStock(variation, quantityFromRawMaterial);
+        
+        if (!hasRawMaterialStock) {
+          toast({
+            variant: "destructive",
+            title: "Matéria-prima insuficiente",
+            description: `Não há matéria-prima suficiente para produzir ${product.name} ${variation?.name ? `(${variation.name})` : ''}.`,
+          });
+          return;
+        }
+      }
+      
       setCart(cart.map(item =>
         item.id === product.id && item.selectedVariation?.id === variation?.id
           ? { ...item, quantity: item.quantity + 1 }
           : item
       ));
     } else {
-      // Para itens compostos, permite adicionar sem estoque (consumirá matéria-prima)
-      // Para itens normais, verifica o estoque
-      if (!isComposite && 1 > itemStock) { // Check if initial quantity (1) exceeds stock
+      // Para itens normais, verifica o estoque normalmente
+      if (!isComposite && itemStock < 1) {
         toast({
           variant: "destructive",
           title: "Estoque insuficiente",
@@ -522,6 +570,21 @@ export default function PDV() {
         });
         return;
       }
+      
+      // Para itens compostos, verifica se precisa de matéria-prima
+      if (isComposite && itemStock < 1 && variation) {
+        const hasRawMaterialStock = await checkRawMaterialStock(variation, 1);
+        
+        if (!hasRawMaterialStock) {
+          toast({
+            variant: "destructive",
+            title: "Matéria-prima insuficiente",
+            description: `Não há matéria-prima suficiente para produzir ${product.name} ${variation?.name ? `(${variation.name})` : ''}.`,
+          });
+          return;
+        }
+      }
+      
       setCart([...cart, { 
         ...product, 
         id: product.id, // Keep original product ID
@@ -549,7 +612,7 @@ export default function PDV() {
     setSelectedVariationForProduct(null);
   };
 
-  const updateQuantity = (productId: string, variationId: string | undefined, quantity: number) => {
+  const updateQuantity = async (productId: string, variationId: string | undefined, quantity: number) => {
     const itemInCart = cart.find(item => 
       item.id === productId && item.selectedVariation?.id === variationId
     );
@@ -562,8 +625,7 @@ export default function PDV() {
 
     const isComposite = itemInCart.selectedVariation?.is_composite || false;
 
-    // Para itens compostos, permite adicionar sem estoque (consumirá matéria-prima)
-    // Para itens normais, verifica o estoque
+    // Para itens normais, verifica o estoque normalmente
     if (!isComposite && quantity > currentStock) {
       toast({
         variant: "destructive",
@@ -571,6 +633,21 @@ export default function PDV() {
         description: `Apenas ${currentStock} unidades disponíveis para ${itemInCart.name} ${itemInCart.selectedVariation?.name ? `(${itemInCart.selectedVariation.name})` : ''}.`,
       });
       return;
+    }
+
+    // Para itens compostos, verifica se precisa de matéria-prima
+    if (isComposite && quantity > currentStock && itemInCart.selectedVariation) {
+      const quantityFromRawMaterial = quantity - currentStock;
+      const hasRawMaterialStock = await checkRawMaterialStock(itemInCart.selectedVariation, quantityFromRawMaterial);
+      
+      if (!hasRawMaterialStock) {
+        toast({
+          variant: "destructive",
+          title: "Matéria-prima insuficiente",
+          description: `Não há matéria-prima suficiente para produzir ${itemInCart.name} ${itemInCart.selectedVariation?.name ? `(${itemInCart.selectedVariation.name})` : ''}.`,
+        });
+        return;
+      }
     }
 
     if (quantity === 0) {

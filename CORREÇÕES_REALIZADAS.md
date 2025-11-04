@@ -33,7 +33,7 @@ Resultado: Meio Frango = 4, Frango Inteiro = 10 (CORRETO!)
 ### 🔧 Problema 2 Corrigido: PDV Bloqueava Venda de Produtos Compostos Sem Estoque
 
 **Descrição do Problema:**
-O PDV não permitia adicionar produtos compostos ao carrinho quando não havia estoque, mesmo que fosse necessário poder vender sem estoque (consumindo da matéria-prima).
+O PDV não permitia adicionar produtos compostos ao carrinho quando não havia estoque, mesmo que a matéria-prima tivesse estoque disponível.
 
 **Comportamento Incorreto (Anterior):**
 ```
@@ -45,33 +45,46 @@ Tentativa de venda: 1 Meio Frango
 
 **Comportamento Correto (Atual):**
 ```
-Estoque: Meio Frango = 0 unidades, Frango Inteiro = 10 unidades
+Cenário 1 - Matéria-prima COM estoque:
+Estoque: Meio Frango = 0, Frango Inteiro = 10
 Tentativa de venda: 1 Meio Frango
-✅ Sistema permite adicionar ao carrinho
-✅ Na finalização, consome 1 unidade do Frango Inteiro (matéria-prima)
-Resultado: Meio Frango = 0, Frango Inteiro = 9 (CORRETO!)
+✅ Verifica estoque da matéria-prima
+✅ Permite adicionar ao carrinho
+✅ Na finalização, consome 1 Frango Inteiro
+Resultado: Meio Frango = 0, Frango Inteiro = 9 ✅
+
+Cenário 2 - Matéria-prima SEM estoque:
+Estoque: Meio Frango = 0, Frango Inteiro = 0
+Tentativa de venda: 1 Meio Frango
+✅ Verifica estoque da matéria-prima
+❌ Bloqueia: "Matéria-prima insuficiente"
+❌ Não permite adicionar ao carrinho
 ```
 
 **Correções Implementadas:**
 1. Adicionados campos `is_composite`, `raw_material_product_id`, `raw_material_variation_id`, `yield_quantity` na interface `Variation`
-2. Função `addProductToCart`: Verifica se é item composto antes de validar estoque
-3. Função `updateQuantity`: Permite aumentar quantidade de itens compostos sem estoque
-4. Produtos compostos podem ser vendidos com estoque = 0 (consumirá matéria-prima)
-5. Produtos normais continuam com validação de estoque
+2. Nova função `checkRawMaterialStock`: Verifica estoque da matéria-prima em tempo real
+3. Função `addProductToCart`: Verifica matéria-prima antes de permitir adicionar ao carrinho
+4. Função `updateQuantity`: Verifica matéria-prima ao aumentar quantidade
+5. Produtos compostos podem ser vendidos com estoque = 0 **SOMENTE** se a matéria-prima tiver estoque
+6. Produtos normais continuam com validação de estoque normal
 
 **Arquivos Modificados:**
 - `/src/pages/PDV.tsx`:
   - Linhas 65-75: Interface `Variation` atualizada
-  - Linhas 486-535: Função `addProductToCart` corrigida
-  - Linhas 552-585: Função `updateQuantity` corrigida
-  - Linhas 1047-1137: Lógica de consumo de estoque
+  - Linhas 486-513: Nova função `checkRawMaterialStock` (verifica matéria-prima)
+  - Linhas 515-598: Função `addProductToCart` com verificação de matéria-prima
+  - Linhas 615-662: Função `updateQuantity` com verificação de matéria-prima
+  - Linhas 1110-1200: Lógica de consumo de estoque
 
 **Documentação Atualizada:**
 - `/FUNCIONALIDADE_ITENS_COMPOSTOS.md` - Documentação completa da nova lógica com exemplos
 
-**Regras Mantidas:**
-- ✅ **PDV e Totem:** Podem vender produtos compostos sem estoque (consumindo matéria-prima)
-- ✅ **CustomStore:** Continua funcionando normalmente (só vende com estoque disponível)
+**Regras Implementadas:**
+- ✅ **Produtos Compostos SEM estoque + Matéria-prima COM estoque:** Venda permitida
+- ✅ **Produtos Compostos SEM estoque + Matéria-prima SEM estoque:** Venda bloqueada
+- ✅ **Produtos Compostos COM estoque:** Venda permitida (não consome matéria-prima)
+- ✅ **Produtos Normais:** Validação de estoque normal
 - ✅ **Prioridade de consumo:** Estoque do produto composto primeiro, matéria-prima depois
 
 ---
