@@ -735,63 +735,203 @@ export default function PDV() {
     }
     
     const printWindow = window.open('', '_blank');
-    if (printWindow) {
-      printWindow.document.write(`
-        <html>
-          <head>
-            <title>Pedido ${orderNumber}</title>
-            <style>
-              body { font-family: monospace; padding: 20px; }
-              h1 { text-align: center; }
-              table { width: 100%; border-collapse: collapse; margin: 20px 0; }
-              th, td { padding: 8px; text-align: left; border-bottom: 1px solid #ddd; }
-              .total { font-size: 18px; font-weight: bold; margin: 20px 0; }
-            </style>
-          </head>
-          <body>
-            <h1>PEDIDO #${orderNumber}</h1>
-            <p>Data: ${new Date().toLocaleString()}</p>
-            <p>Origem: ${source.toUpperCase()}</p>
-            ${phone ? `<p>Tel: ${phone}</p>` : ''}
-            ${customer?.name ? `<p>Cliente: ${customer.name}</p>` : ''}
-            ${isDelivery ? `
-              <p>Entrega: Sim</p>
-              <p>Endereço: ${address}, ${number} - ${neighborhood}</p>
-              ${reference ? `<p>Referência: ${reference}</p>` : ''}
-              ${cep && !skipCep ? `<p>CEP: ${cep}</p>` : ''}
-            ` : ''}
-            <table>
-              <thead>
-                <tr>
-                  <th>Produto</th>
-                  <th>Qtd</th>
-                  <th>Preço</th>
-                  <th>Total</th>
-                </tr>
-              </thead>
-              <tbody>
-                ${cart.map(item => `
-                  <tr>
-                    <td>${item.name} ${item.selectedVariation ? `(${item.selectedVariation.name})` : ''} ${item.isRedeemedWithPoints ? '(Resgatado com pontos)' : ''}</td>
-                    <td>${item.quantity}</td>
-                    <td>${item.isRedeemedWithPoints ? `${item.redemption_points_cost} pts` : `R$ ${(item.price).toFixed(2)}`}</td>
-                    <td>${item.isRedeemedWithPoints ? `${item.redemption_points_cost * item.quantity} pts` : `R$ ${(item.price * item.quantity).toFixed(2)}`}</td>
-                  </tr>
-                `).join('')}
-              </tbody>
-            </table>
-            ${isDelivery && deliveryAmount > 0 ? `<p>Taxa de Entrega: R$ ${deliveryAmount.toFixed(2)}</p>` : ''}
-            <div class="total">TOTAL: R$ ${totalMonetary.toFixed(2)}</div>
-            ${pointsToRedeem > 0 ? `<div class="total">TOTAL PONTOS RESGATADOS: ${pointsToRedeem} pts</div>` : ''}
-            <p>Pagamento: ${paymentMethod?.charAt(0).toUpperCase() + paymentMethod?.slice(1)}</p>
-            ${paymentMethod === "dinheiro" && changeFor ? `<p>Troco para: R$ ${parseFloat(changeFor).toFixed(2)}</p>` : ''}
-          </body>
-        </html>
-      `);
-      printWindow.document.close();
-      printWindow.print();
-      printWindow.close();
+    if (!printWindow) {
+      toast({
+        variant: "destructive",
+        title: "Erro ao imprimir",
+        description: "Não foi possível abrir a janela de impressão. Verifique se o bloqueador de pop-ups está desativado.",
+      });
+      return;
     }
+
+    const customerName = customer?.name || 'Cliente Anônimo';
+    const customerPhone = phone || 'N/A';
+    const orderDate = new Date().toLocaleDateString('pt-BR', { 
+      day: '2-digit', 
+      month: '2-digit', 
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+
+    let printContent = `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Pedido #${orderNumber}</title>
+          <style>
+            body {
+              font-family: 'Courier New', monospace;
+              max-width: 300px;
+              margin: 20px auto;
+              padding: 0;
+              font-size: 12px;
+            }
+            .header {
+              text-align: center;
+              background-color: #2a2a2a !important;
+              color: white;
+              padding: 15px 10px;
+              margin-bottom: 10px;
+              -webkit-print-color-adjust: exact;
+              print-color-adjust: exact;
+              color-adjust: exact;
+            }
+            .header h1 {
+              margin: 0;
+              font-size: 18px;
+              font-weight: bold;
+              text-transform: uppercase;
+              letter-spacing: 0.5px;
+            }
+            .header .phone {
+              margin-top: 5px;
+              font-size: 14px;
+            }
+            .content {
+              padding: 10px;
+            }
+            .order-info {
+              margin-bottom: 5px;
+            }
+            .order-info div {
+              margin: 2px 0;
+              font-size: 12px;
+            }
+            .section {
+              margin: 5px 0;
+              padding: 5px 0;
+            }
+            .section-title {
+              font-weight: bold;
+              margin-bottom: 3px;
+              font-size: 12px;
+            }
+            .section div {
+              font-size: 12px;
+            }
+            .item {
+              display: flex;
+              justify-content: space-between;
+              margin: 3px 0;
+            }
+            .divider {
+              border-top: 1px dashed #333;
+              margin: 8px 0;
+            }
+            .total {
+              font-size: 14px;
+              font-weight: bold;
+              margin-top: 8px;
+            }
+            .footer {
+              text-align: center;
+              margin-top: 10px;
+              font-size: 11px;
+            }
+            @media print {
+              body {
+                margin: 0;
+                padding: 0;
+              }
+              .header {
+                background-color: #2a2a2a !important;
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+              }
+            }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <h1>${customerName.toUpperCase()}</h1>
+            ${customerPhone !== 'N/A' ? `<div class="phone">${customerPhone}</div>` : ''}
+          </div>
+
+          <div class="content">
+            <div class="order-info">
+              <div>Pedido #${orderNumber}</div>
+              <div>${orderDate}</div>
+            </div>
+
+            ${isDelivery ? `
+              <div class="divider"></div>
+              <div class="section">
+                <div class="section-title">ENTREGA</div>
+                <div>${address}, ${number}</div>
+                ${neighborhood ? `<div>${neighborhood}</div>` : ''}
+                ${reference ? `<div>Ref: ${reference}</div>` : ''}
+                ${cep && !skipCep ? `<div>CEP: ${cep}</div>` : ''}
+              </div>
+            ` : ''}
+
+            <div class="divider"></div>
+
+            <div class="section">
+              <div class="section-title">ITENS DO PEDIDO</div>
+              ${cart.map(item => {
+                const isRedeemed = item.isRedeemedWithPoints;
+                return `
+                  <div class="item">
+                    <span>${item.quantity}x ${item.name}${item.selectedVariation ? ` (${item.selectedVariation.name})` : ''}${isRedeemed ? ' ⭐' : ''}</span>
+                    <span>${isRedeemed ? 'RESGATADO' : `R$ ${(item.price * item.quantity).toFixed(2)}`}</span>
+                  </div>
+                `;
+              }).join('')}
+            </div>
+
+            ${isDelivery && deliveryAmount > 0 ? `
+              <div class="divider"></div>
+              <div class="section">
+                <div>Taxa de Entrega: R$ ${deliveryAmount.toFixed(2)}</div>
+              </div>
+            ` : ''}
+
+            <div class="divider"></div>
+
+            <div class="section">
+              <div><strong>Pagamento:</strong> ${paymentMethod?.charAt(0).toUpperCase() + paymentMethod?.slice(1)}</div>
+              ${paymentMethod === "dinheiro" && changeFor ? `<div><strong>Troco para:</strong> R$ ${parseFloat(changeFor).toFixed(2)}</div>` : ''}
+            </div>
+
+            <div class="total">
+              TOTAL: R$ ${totalMonetary.toFixed(2)}
+            </div>
+
+            ${pointsToRedeem > 0 ? `
+              <div class="total">
+                PONTOS RESGATADOS: ${pointsToRedeem} pts
+              </div>
+            ` : ''}
+
+            <div class="footer">
+              Obrigado pela preferência!
+            </div>
+          </div>
+
+          <script>
+            window.onload = function() {
+              window.print();
+            };
+            
+            // Fecha a janela automaticamente após imprimir ou cancelar
+            window.onafterprint = function() {
+              window.close();
+            };
+            
+            // Fallback para navegadores que não suportam onafterprint
+            if (!window.matchMedia) {
+              setTimeout(function() {
+                window.close();
+              }, 1000);
+            }
+          </script>
+        </body>
+      </html>
+    `;
+
+    printWindow.document.write(printContent);
+    printWindow.document.close();
   };
 
   const loadSavedAddresses = async () => {
