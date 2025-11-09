@@ -417,14 +417,26 @@ export default function OrderPanel() {
     
     // Data e hora da reserva (se houver)
     let reservationDateTime = '';
-    if (order.reservation_date) {
+    if (order.reservation_date && order.pickup_time) {
+      // Tem data e horário
       const reservationDate = new Date(order.reservation_date);
       const dateStr = reservationDate.toLocaleDateString('pt-BR', { 
         day: '2-digit', 
         month: '2-digit', 
         year: 'numeric'
       });
-      reservationDateTime = order.pickup_time ? `${dateStr}, ${order.pickup_time}` : dateStr;
+      reservationDateTime = `${dateStr}, ${order.pickup_time}`;
+    } else if (order.reservation_date) {
+      // Tem apenas data
+      const reservationDate = new Date(order.reservation_date);
+      reservationDateTime = reservationDate.toLocaleDateString('pt-BR', { 
+        day: '2-digit', 
+        month: '2-digit', 
+        year: 'numeric'
+      });
+    } else if (order.pickup_time) {
+      // Tem apenas horário
+      reservationDateTime = order.pickup_time;
     }
 
     let printContent = `
