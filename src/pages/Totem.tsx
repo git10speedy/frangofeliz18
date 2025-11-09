@@ -647,13 +647,19 @@ export default function Totem() {
       return;
     }
 
-    // Se o cliente já está identificado (tem telefone e customer existe), finalizar direto
+    // SITUAÇÃO 1: Cliente já cadastrado com número - usa nome do cadastro
     if (customer) {
       finishOrder();
       return;
     }
 
-    // Em todos os outros casos (sem telefone, ou telefone sem cadastro), abrir popup para pedir nome
+    // SITUAÇÃO 2: Cliente se cadastrando pela primeira vez - usa nome do novo cadastro
+    if (phone && phone.length >= 10 && name) {
+      finishOrder();
+      return;
+    }
+
+    // SITUAÇÃO 3: Cliente não quer se cadastrar com número - pedir nome (obrigatório)
     setShowCustomerNameDialog(true);
   };
 
@@ -1344,18 +1350,27 @@ export default function Totem() {
           </DialogHeader>
           <div className="space-y-4 py-4">
             <p className="text-muted-foreground">
-              Digite seu nome para identificarmos seu pedido:
+              {phone && phone.length >= 10 
+                ? "Digite seu nome para completar o cadastro (opcional):"
+                : "Digite seu nome para identificarmos seu pedido (obrigatório):"}
             </p>
             <Input
               id="customer-name-dialog-input"
               type="text"
-              placeholder="Seu nome (opcional)"
+              placeholder={phone && phone.length >= 10 ? "Seu nome (opcional)" : "Seu nome"}
               value={tempCustomerName}
               onChange={(e) => setTempCustomerName(e.target.value)}
               className="text-lg h-12"
               onKeyDown={(e) => {
                 if (e.key === 'Enter') {
                   e.preventDefault();
+                  // Se não tem telefone, nome é obrigatório
+                  if (!phone || phone.length < 10) {
+                    if (!tempCustomerName.trim()) {
+                      toast({ variant: "destructive", title: "Nome obrigatório", description: "Por favor, digite seu nome para continuar." });
+                      return;
+                    }
+                  }
                   if (tempCustomerName.trim()) {
                     setName(tempCustomerName);
                   }
@@ -1365,20 +1380,30 @@ export default function Totem() {
               }}
             />
             <div className="flex gap-3">
+              {/* Botão Pular só aparece se tem telefone cadastrado */}
+              {phone && phone.length >= 10 && (
+                <Button
+                  variant="outline"
+                  className="flex-1 h-12 text-lg"
+                  onClick={() => {
+                    setTempCustomerName("");
+                    setShowCustomerNameDialog(false);
+                    finishOrder();
+                  }}
+                >
+                  Pular
+                </Button>
+              )}
               <Button
-                variant="outline"
                 className="flex-1 h-12 text-lg"
                 onClick={() => {
-                  setTempCustomerName("");
-                  setShowCustomerNameDialog(false);
-                  finishOrder();
-                }}
-              >
-                Pular
-              </Button>
-              <Button
-                className="flex-1 h-12 text-lg"
-                onClick={() => {
+                  // Se não tem telefone, nome é obrigatório
+                  if (!phone || phone.length < 10) {
+                    if (!tempCustomerName.trim()) {
+                      toast({ variant: "destructive", title: "Nome obrigatório", description: "Por favor, digite seu nome para continuar." });
+                      return;
+                    }
+                  }
                   if (tempCustomerName.trim()) {
                     setName(tempCustomerName);
                   }
