@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import useEmblaCarousel from 'embla-carousel-react';
 import { 
@@ -131,6 +132,7 @@ export default function PDV() {
   const [isDelivery, setIsDelivery] = useState(false);
   const [deliveryFee, setDeliveryFee] = useState("");
   const [changeFor, setChangeFor] = useState("");
+  const [notes, setNotes] = useState(""); // Observações do cliente
   const [isReserva, setIsReserva] = useState(false);
   const [reservaPickupTime, setReservaPickupTime] = useState<string>("");
 
@@ -758,6 +760,12 @@ export default function PDV() {
       hour: '2-digit',
       minute: '2-digit'
     });
+    
+    // Data e hora da reserva (se houver)
+    let reservationDateTime = '';
+    if (isReserva && reservaPickupTime) {
+      reservationDateTime = reservaPickupTime;
+    }
 
     let printContent = `
       <!DOCTYPE html>
@@ -789,9 +797,10 @@ export default function PDV() {
               text-transform: uppercase;
               letter-spacing: 0.5px;
             }
-            .header .phone {
+            .header .datetime {
               margin-top: 5px;
-              font-size: 14px;
+              font-size: 13px;
+              opacity: 0.95;
             }
             .content {
               padding: 10px;
@@ -850,12 +859,13 @@ export default function PDV() {
         <body>
           <div class="header">
             <h1>${customerNameForOrder.toUpperCase()}</h1>
-            ${customerPhone !== 'N/A' ? `<div class="phone">${customerPhone}</div>` : ''}
+            ${reservationDateTime ? `<div class="datetime">${reservationDateTime}</div>` : ''}
           </div>
 
           <div class="content">
             <div class="order-info">
               <div>Pedido #${orderNumber}</div>
+              ${customerPhone !== 'N/A' ? `<div>Nº: ${customerPhone}</div>` : ''}
               <div>${orderDate}</div>
             </div>
 
@@ -893,6 +903,14 @@ export default function PDV() {
             ` : ''}
 
             <div class="divider"></div>
+
+            ${notes ? `
+              <div class="section">
+                <div class="section-title">OBSERVAÇÃO</div>
+                <div>${notes}</div>
+              </div>
+              <div class="divider"></div>
+            ` : ''}
 
             <div class="section">
               <div><strong>Pagamento:</strong> ${paymentMethod?.charAt(0).toUpperCase() + paymentMethod?.slice(1)}</div>
@@ -1179,6 +1197,7 @@ export default function PDV() {
         delivery_neighborhood: isDelivery ? neighborhood : null,
         delivery_reference: isDelivery ? reference : null,
         delivery_cep: isDelivery && !skipCep ? cep : null,
+        notes: notes || null, // Observações do cliente
         pickup_time: isReserva ? reservaPickupTime : null, // Salvar horário de retirada se for reserva
         status: initialStatus, // Usar o status inicial dinâmico
       })
@@ -2027,6 +2046,17 @@ export default function PDV() {
                       </Select>
                     </div>
                   )}
+
+                  <div className="space-y-2">
+                    <Label htmlFor="notes">Observação</Label>
+                    <Textarea
+                      id="notes"
+                      placeholder="Ex: menos sal, mais assado, ao ponto, entregar no portão..."
+                      value={notes}
+                      onChange={(e) => setNotes(e.target.value)}
+                      className="min-h-[80px]"
+                    />
+                  </div>
 
                   <div className="space-y-2">
                     <Label htmlFor="paymentMethod">Forma de Pagamento</Label>

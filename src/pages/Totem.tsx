@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Textarea } from "@/components/ui/textarea";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -118,6 +119,7 @@ export default function Totem() {
   const [pickupTime, setPickupTime] = useState<string>("");
   const [needsChange, setNeedsChange] = useState(false);
   const [changeFor, setChangeFor] = useState("");
+  const [notes, setNotes] = useState(""); // Observações do cliente
   const [showSuccessScreen, setShowSuccessScreen] = useState(false);
   const [countdown, setCountdown] = useState(5);
   const [lastOrderNumber, setLastOrderNumber] = useState("");
@@ -433,7 +435,9 @@ export default function Totem() {
         const openDateTime = setMinutes(setHours(date, parseInt(openTime.split(':')[0])), parseInt(openTime.split(':')[1]));
         const closeDateTime = setMinutes(setHours(date, parseInt(closeTime.split(':')[0])), parseInt(closeTime.split(':')[1]));
         
-        return isAfter(pickupDateTime, openDateTime) && isBefore(pickupDateTime, closeDateTime);
+        // Permitir horários até o horário de fechamento (inclusive)
+        return (isAfter(pickupDateTime, openDateTime) || pickupDateTime.getTime() === openDateTime.getTime()) && 
+               (isBefore(pickupDateTime, closeDateTime) || pickupDateTime.getTime() === closeDateTime.getTime());
       }
     };
 
@@ -663,12 +667,13 @@ export default function Totem() {
     setShowCustomerNameDialog(true);
   };
 
-  const finishOrder = async () => {
+  const finishOrder = async (customerNameOverride?: string) => {
     console.log("--- finishOrder started (Totem) ---");
     console.log("Current storeId:", storeId);
     console.log("Is delivery:", isDelivery);
     console.log("Reservation Date:", reservationDate ? format(reservationDate, "yyyy-MM-dd HH:mm:ss") : "null");
     console.log("Pickup Time:", pickupTime);
+    console.log("Customer name override:", customerNameOverride);
 
     // Move calculations to the top
     const monetarySubtotal = cart.reduce((sum, item) => 
@@ -716,6 +721,7 @@ export default function Totem() {
     // --- Lógica de Verificação/Criação de Cliente (OPCIONAL) ---
     let customerIdForOrder: string | null = null;
     let currentCustomer: Customer | null = customer; // Use the customer state if already loaded by useEffect
+    const finalCustomerName = customerNameOverride || name; // Usar o nome passado como parâmetro ou o estado
 
     if (phone && phone.length >= 10) {
       if (!currentCustomer) { // If customer not found by useEffect, try to find/create now
@@ -728,10 +734,10 @@ export default function Totem() {
 
         if (existingCustomer) {
           currentCustomer = existingCustomer as unknown as Customer;
-        } else if (name) { // Only create if name is provided
+        } else if (finalCustomerName) { // Only create if name is provided
           const { data: newCustomer, error: newCustomerError } = await supabase
             .from("customers" as any)
-            .insert({ phone, name, points: 0, store_id: storeId })
+            .insert({ phone, name: finalCustomerName, points: 0, store_id: storeId })
             .select()
             .single();
 
@@ -818,7 +824,7 @@ export default function Totem() {
         store_id: storeId,
         order_number: orderNumber,
         customer_id: customerIdForOrder, // Usar o customerIdForOrder (pode ser null)
-        customer_name: name || null, // Salvar o nome digitado mesmo sem customer_id
+        customer_name: finalCustomerName || null, // Salvar o nome digitado mesmo sem customer_id
         source: "totem",
         total: totalMonetary, // Usar o total monetário
         payment_method: finalPaymentMethod, // Usar a string combinada
@@ -829,6 +835,7 @@ export default function Totem() {
         delivery_number: null,
         delivery_reference: null,
         delivery_cep: null,
+        notes: notes || null, // Observações do cliente
         change_for: paymentMethod === "dinheiro" && needsChange ? parseFloat(changeFor) : null,
         cash_register_id: cashRegisterIdForOrder, // Assign cash register ID here
         status: initialStatus, // Usar o status inicial dinâmico
@@ -1240,6 +1247,17 @@ export default function Totem() {
                           </>
                        )}
 
+                        <div className="space-y-2">
+                          <Label htmlFor="notes">Observação</Label>
+                          <Textarea
+                            id="notes"
+                            placeholder="Ex: menos sal, mais assado, ao ponto, entregar no portão..."
+                            value={notes}
+                            onChange={(e) => setNotes(e.target.value)}
+                            className="min-h-[80px] text-base"
+                          />
+                        </div>
+
                         <div className="space-y-3">
                           <div className="flex items-center gap-2">
                             <Checkbox
@@ -1371,11 +1389,12 @@ export default function Totem() {
                       return;
                     }
                   }
-                  if (tempCustomerName.trim()) {
-                    setName(tempCustomerName);
+                  const nameToUse = tempCustomerName.trim();
+                  if (nameToUse) {
+                    setName(nameToUse);
                   }
                   setShowCustomerNameDialog(false);
-                  finishOrder();
+                  finishOrder(nameToUse || undefined);
                 }
               }}
             />
@@ -1404,11 +1423,12 @@ export default function Totem() {
                       return;
                     }
                   }
-                  if (tempCustomerName.trim()) {
-                    setName(tempCustomerName);
+                  const nameToUse = tempCustomerName.trim();
+                  if (nameToUse) {
+                    setName(nameToUse);
                   }
                   setShowCustomerNameDialog(false);
-                  finishOrder();
+                  finishOrder(nameToUse || undefined);
                 }}
               >
                 OK
